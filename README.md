@@ -70,3 +70,12 @@ Feature：１つの箱　この中にデータがいろいろ入ってる
   ]
 }
 ```
+
+## 3. 地図の表示
+
+・HTML、CSS、TypeScriptを使って地図をブラウザ上に表示した  
+・(出典先：国土地理院)も画面右下に表示  
+
+<img width="1910" height="1005" alt="スクリーンショット 2026-10-09 164006" src="https://github.com/user-attachments/assets/fac14e7e-24ba-4cfb-8cf6-d26e1a1e0d3b" />
+
+
