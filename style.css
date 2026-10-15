@@ -1,8 +1,177 @@
-html,
-body,
-#map {
+* {
+  box-sizing: border-box;
   margin: 0;
   padding: 0;
+}
+
+html, body, #app {
   width: 100%;
-  height: 100vh;
+  height: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+#app {
+  display: flex;
+}
+
+/* 画面の約1/6幅（最小300px）のメニューバー */
+#sidebar {
+  width: 16.66vw;
+  min-width: 300px;
+  height: 100%;
+  background: #ffffff;
+  border-right: 1px solid #e0e0e0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px;
+  z-index: 10;
+  box-shadow: 2px 0 8px rgba(0,0,0,0.05);
+}
+
+.sidebar-header h2 {
+  font-size: 18px;
+  color: #2c3e50;
+  margin-bottom: 8px;
+}
+
+/* 前提・注意書き */
+.notice-box {
+  background: #f8f9fa;
+  border-left: 3px solid #42b883;
+  padding: 8px 10px;
+  font-size: 11px;
+  color: #666;
+  margin-bottom: 12px;
+  border-radius: 0 4px 4px 0;
+}
+
+.notice-box .attribution {
+  color: #888;
+  margin-top: 2px;
+}
+
+/* 検索フォーム */
+.search-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.search-section input[type="text"],
+.search-section select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.checkbox-label {
+  font-size: 12px;
+  color: #444;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+/* クリック地点解除バー */
+.click-info {
+  background: #e8f5e9;
+  border: 1px solid #c8e6c9;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #2e7d32;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.click-info button {
+  background: #ffffff;
+  border: 1px solid #2e7d32;
+  color: #2e7d32;
+  padding: 2px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+}
+
+/* エラー / 0件表示 */
+.error-message {
+  padding: 12px;
+  background: #fff3e0;
+  border: 1px solid #ffe0b2;
+  color: #e65100;
+  font-size: 13px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+/* 一覧リスト */
+.park-list {
+  list-style: none;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.park-item {
+  padding: 10px 12px;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #fafafa;
+}
+
+.park-item:hover {
+  border-color: #42b883;
+  background: #f0fdf4;
+}
+
+/* 最寄り公園の強調 */
+.park-item.nearest {
+  border: 2px solid #e74c3c;
+  background: #fdf2e9;
+}
+
+.park-item.active {
+  border-color: #42b883;
+  background: #e8f5e9;
+}
+
+.park-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.park-name {
+  font-weight: bold;
+  font-size: 14px;
+  color: #333;
+}
+
+.park-distance {
+  font-size: 12px;
+  font-weight: bold;
+  color: #e74c3c;
+}
+
+.park-meta {
+  font-size: 11px;
+  color: #777;
+  margin-top: 4px;
+}
+
+/* 地図エリア */
+#map {
+  flex: 1;
+  height: 100%;
 }

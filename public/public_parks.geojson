@@ -1,0 +1,209 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          133.865522074532,
+          34.7661754376491
+        ]
+      },
+      "properties": {
+        "id": 1,
+        "name": "日応寺自然の森スポーツ広場",
+        "category": "植物・自然・公園",
+        "address": "岡山市北区日応寺200",
+        "ward": "北区"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          133.869390167187,
+          34.7689750253563
+        ]
+      },
+      "properties": {
+        "id": 2,
+        "name": "少年自然の家",
+        "category": "植物・自然・公園",
+        "address": "岡山市北区日応寺4",
+        "ward": "北区"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          133.912653982368,
+          34.6005908041987
+        ]
+      },
+      "properties": {
+        "id": 3,
+        "name": "浦安総合公園西地区　花と緑の相談所",
+        "category": "植物・自然・公園",
+        "address": "岡山市南区浦安西町148-1",
+        "ward": "南区"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          133.923591412123,
+          34.6824322663986
+        ]
+      },
+      "properties": {
+        "id": 4,
+        "name": "国際児童年記念公園こどもの森",
+        "category": "植物・自然・公園",
+        "address": "岡山市北区学南町3-6-1",
+        "ward": "北区"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          133.930920724169,
+          34.6929398746775
+        ]
+      },
+      "properties": {
+        "id": 5,
+        "name": "半田山植物園",
+        "category": "植物・自然・公園",
+        "address": "岡山市北区法界院3-1",
+        "ward": "北区"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          133.930920724169,
+          34.6929398746775
+        ]
+      },
+      "properties": {
+        "id": 6,
+        "name": "半田山植物園会館",
+        "category": "植物・自然・公園",
+        "address": "岡山市北区法界院3-1",
+        "ward": "北区"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          133.930920724169,
+          34.6929398746775
+        ]
+      },
+      "properties": {
+        "id": 7,
+        "name": "半田山植物園緑の相談室",
+        "category": "植物・自然・公園",
+        "address": "岡山市北区法界院3-1",
+        "ward": "北区"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          133.959832642477,
+          34.7592447585188
+        ]
+      },
+      "properties": {
+        "id": 8,
+        "name": "牧山クラインガルテン",
+        "category": "植物・自然・公園",
+        "address": "岡山市北区中牧219",
+        "ward": "北区"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          133.961708513304,
+          34.6632883012212
+        ]
+      },
+      "properties": {
+        "id": 9,
+        "name": "操山公園里山センター",
+        "category": "植物・自然・公園",
+        "address": "岡山市中区沢田649-2",
+        "ward": "中区"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          133.972393479126,
+          34.6861741651703
+        ]
+      },
+      "properties": {
+        "id": 10,
+        "name": "おまちアクアガーデン（雄町の冷泉）",
+        "category": "植物・自然・公園",
+        "address": "岡山市中区雄町305-8",
+        "ward": "中区"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          134.028929214053,
+          34.6502307295638
+        ]
+      },
+      "properties": {
+        "id": 11,
+        "name": "西大寺緑花公園 体験学習施設百花プラザ 花と緑の相談所",
+        "category": "植物・自然・公園",
+        "address": "岡山市東区西大寺南 一丁目2番３号",
+        "ward": "東区"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          134.029137512941,
+          34.6502863783317
+        ]
+      },
+      "properties": {
+        "id": 12,
+        "name": "西大寺緑花公園",
+        "category": "植物・自然・公園",
+        "address": "岡山市東区西大寺南一丁目",
+        "ward": "東区"
+      }
+    }
+  ]
+}

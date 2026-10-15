@@ -6,6 +6,49 @@
     <title>岡山市公園マップ</title>
   </head>
   <body>
+    <div id="app">
+      <!-- 画面の約1/6のサイドバー -->
+      <aside id="sidebar">
+        <header class="sidebar-header">
+          <h2>岡山市 公園検索</h2>
+          <!-- エラーと前提の表示 -->
+          <div id="notice-box" class="notice-box">
+            <p>※ 表示距離は代表点(緯度経度)からの直線距離です。</p>
+            <p class="attribution">出典：岡山市オープンデータ</p>
+          </div>
+        </header>
+
+        <!--　エリア選択 -->
+        <section class="search-section">
+          <input type="text" id="search-name" placeholder="公園名で検索..." />
+
+          <select id="search-ward">
+            <option value="">すべての区</option>
+          </select>
+
+        <!-- 空間抽出 -->
+          <label class="checkbox-label">
+            <input type="checkbox" id="search-in-bounds" />
+            画面内の公園のみ表示する
+          </label>
+        </section>
+
+        <!-- クリック情報 / 距離ソートメッセージ -->
+        <div id="click-info" class="click-info" style="display: none;">
+          <p>📍クリック地点からの距離順</p>
+          <button id="reset-click-btn">選択解除</button>
+        </div>
+
+        <!-- 0件時・エラー表示エリア -->
+        <div id="error-message" class="error-message" style="display: none;"></div>
+
+        <!-- 公園一覧 -->
+        <ul id="park-list" class="park-list"></ul>
+      </aside>
+
+      <!-- 地図エリア -->
+      <main id="map"></main>
+    </div>
     <div id="map"></div>
     <script type="module" src="main.ts"></script>
   </body>

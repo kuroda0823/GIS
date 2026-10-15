@@ -1,139 +1,374 @@
-//import：別ファイルのデータ、ファイル自身、なんでも呼び出せる
-
-//maplibre-gl(外部ツール)から、Map, NavigationControl(関数やクラス)を読み込む
-import { Map, NavigationControl } from 'maplibre-gl'
-//maplibre-glのなかのcssファイルを読み込む
+import { Map, NavigationControl, Popup, Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
-//自分のcssファイルを読み込む
 import './style.css'
 
-
 // 1. 地図オブジェクトの作成
-
 const map = new Map({
-  container: 'map',           //地図を埋め込むHTMLのIDを指定
-
+  container: 'map',
   style: {
     version: 8,
-
-    //どこから地図画像を引っ張ってくるか(sources)を指定
     sources: {
       gsi: {
         type: 'raster',
         tiles: ['https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png'],
         tileSize: 256,
-        maxzoom: 18,
-        attribution:
-          '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>',
+        attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>',
       },
     },
-
-
-    //読み込んだデータをどう画面に表示するか(layers)を指定
-    layers: [
-      {
-        id: 'gsi-base',   //レイヤーのID
-        type: 'raster',   //ラスタ(画像)として表示
-        source: 'gsi',    // sources で定義した'gsi'データ
-      },
-    ],
+    layers: [{ id: 'gsi-base', type: 'raster', source: 'gsi' }],
   },
-
-  //地図の初期表示位置とズームレベルを指定
-  center: [133.918, 34.662],   // 岡山市中心部の座標 [経度, 緯度]
-  zoom: 14,
+  center: [133.918, 34.662],
+  zoom: 12,
 })
-
-
-//2. コントロールの追加
-//作成したmapに、ズーム操作用ボタンの部品(NavigationControl)を『右上』に配置
 
 map.addControl(new NavigationControl(), 'top-right')
 
+let allParks: any[] = []
+let clickedPoint: [number, number] | null = null
+let clickMarker: Marker | null = null
+let currentPopup: Popup | null = null
 
-//3. 公園データ(GeoJSON)の準備と描画
-
-//表示したい公園データ(点と面)をオブジェクトとして定義
-const parkGeoJSON: any = {
-  type: 'FeatureCollection',
-  features: [
-    // 【Point】ひみつの基地公園（点データ）
-    {
-      type: 'Feature',
-      properties: {
-        name: 'ひみつの基地公園',
-      },
-      geometry: {
-        type: 'Point',
-        coordinates: [133.918, 34.662], // 岡山市中心部の座標 [経度, 緯度]
-      },
-    },
-    // 【Polygon】ひみつの基地公園の敷地（面データ）
-    {
-      type: 'Feature',
-      properties: {
-        name: 'ひみつの基地公園の敷地',
-      },
-      geometry: {
-        type: 'Polygon',
-        coordinates: [
-          [
-            [133.916, 34.661],
-            [133.920, 34.661],
-            [133.920, 34.663],
-            [133.916, 34.663],
-            [133.916, 34.661], // 面を閉じるため最初の座標と同じにする
-          ],
-        ],
-      },
-    },
-  ],
+// 2点間の距離をメートル単位で計算（ヒュベニの公式：地球の丸みも考慮して計算してる）
+function calculateDistanceMeters(coord1: [number, number], coord2: [number, number]): number {
+  const [lng1, lat1] = coord1
+  const [lng2, lat2] = coord2
+  const R = 6371000 // 地球の半径 (m)
+  const dLat = ((lat2 - lat1) * Math.PI) / 180
+  const dLng = ((lng2 - lng1) * Math.PI) / 180
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) * Math.sin(dLng / 2)
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return Math.round(R * c)
 }
 
-//地図の背景画像などの準備が完全に終わったら(load)、公園データを追加する
-map.on('load', () => {
+// 距離のフォーマット表示 (m / km)
+function formatDistance(meters: number): string {
+  if (meters >= 1000) {
+    return `${(meters / 1000).toFixed(1)} km`
+  }
+  return `${meters} m`
+}
 
-  //① データソースの追加：公園データを 'park-data' というニックネームで地図に登録
-  map.addSource('park-data', {
-    type: 'geojson',
-    data: parkGeoJSON,
-  })
+map.on('load', async () => {
+  try {
+    const response = await fetch('/public_parks.geojson')
+    if (!response.ok) throw new Error('GeoJSONの読み込みに失敗しました')
 
-  //② Polygon(面)の塗りつぶし表示設定
-  map.addLayer({
-    id: 'park-polygon-fill',    //レイヤーのID(ニックネーム)
-    type: 'fill',                //塗りつぶし(面)として表示
-    source: 'park-data',         //上で登録した 'park-data' を使う
-    filter: ['==', '$type', 'Polygon'], //データの種類が 'Polygon' のものだけに適用
-    paint: {
-      'fill-color': '#22c55e',   //塗りつぶしの色(緑色)
-      'fill-opacity': 0.4,       //透明度(0.4 = 40%)
-    },
-  })
+    const geojson = await response.json()
+    allParks = geojson.features || []
 
-  //③ Polygon(面)の枠線表示設定
-  map.addLayer({
-    id: 'park-polygon-outline', //レイヤーのID
-    type: 'line',                //線として表示
-    source: 'park-data',
-    filter: ['==', '$type', 'Polygon'], // 'Polygon' のものだけに適用
-    paint: {
-      'line-color': '#15803d',   //線の色(濃い緑色)
-      'line-width': 2,           //線の太さ(2ピクセル)
-    },
-  })
+    if (allParks.length === 0) {
+      showError('公園データが見つかりませんでした。')
+      return
+    }
 
-  //④ Point(点)の円マーク表示設定
-  map.addLayer({
-    id: 'park-point',            //レイヤーのID
-    type: 'circle',              //丸印(円)として表示
-    source: 'park-data',
-    filter: ['==', '$type', 'Point'], //データの種類が 'Point' のものだけに適用
-    paint: {
-      'circle-radius': 8,        //円の大きさ(半径8ピクセル)
-      'circle-color': '#ef4444',  //円の色(赤色)
-      'circle-stroke-width': 2,  //円のフチの太さ
-      'circle-stroke-color': '#ffffff', //円のフチの色(白色)
-    },
-  })
+    // 区（行政区）ドロップダウンの選択肢を動的生成
+    initWards(allParks)
+
+    // 地図データソースの登録
+    map.addSource('public-parks-data', {
+      type: 'geojson',
+      data: geojson,
+      generateId: true,
+    })
+
+    // 最寄り公園と結ぶ線用ソースの登録
+    map.addSource('connecting-line-data', {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+    })
+
+    // 接続線のレイヤー描画（点線）
+    map.addLayer({
+      id: 'connecting-line-layer',
+      type: 'line',
+      source: 'connecting-line-data',
+      paint: {
+        'line-color': '#e74c3c',
+        'line-width': 3,
+        'line-dasharray': [2, 2],
+      },
+    })
+
+    // 公園ピンのレイヤー描画
+    map.addLayer({
+      id: 'public-parks-layer',
+      type: 'circle',
+      source: 'public-parks-data',
+      paint: {
+        'circle-radius': [
+          'case',
+          ['boolean', ['feature-state', 'nearest'], false], 11,
+          ['boolean', ['feature-state', 'selected'], false], 10,
+          7,
+        ],
+        'circle-color': [
+          'case',
+          ['boolean', ['feature-state', 'nearest'], false], '#e74c3c',
+          '#42b883',
+        ],
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#ffffff',
+      },
+    })
+
+    setupEvents()
+    updateFilterAndList()
+  } catch (err: any) {
+    showError(`読み込みエラー: ${err.message}`)
+  }
 })
+
+//クリック時のイベント
+function setupEvents() {
+  // 地図クリック時
+  map.on('click', (e) => {
+    const features = map.queryRenderedFeatures(e.point, { layers: ['public-parks-layer'] })
+    if (features.length > 0) return
+
+    const lngLat: [number, number] = [e.lngLat.lng, e.lngLat.lat]
+    clickedPoint = lngLat
+
+    if (!clickMarker) {
+      clickMarker = new Marker({ color: '#e74c3c' }).setLngLat(lngLat).addTo(map)
+    } else {
+      clickMarker.setLngLat(lngLat)
+    }
+
+    const clickInfoEl = document.getElementById('click-info')
+    if (clickInfoEl) clickInfoEl.style.display = 'flex'
+
+    updateFilterAndList()
+  })
+
+  // ピンクリック時
+  map.on('click', 'public-parks-layer', (e) => {
+    if (!e.features || e.features.length === 0) return
+    selectPark(e.features[0])
+  })
+
+  // 画面移動時
+  map.on('moveend', () => {
+    const inBoundsCheckbox = document.getElementById('search-in-bounds') as HTMLInputElement
+    if (inBoundsCheckbox && inBoundsCheckbox.checked) {
+      updateFilterAndList()
+    }
+  })
+
+  // 検索イベント
+  document.getElementById('search-name')?.addEventListener('input', updateFilterAndList)
+  document.getElementById('search-ward')?.addEventListener('change', updateFilterAndList)
+  document.getElementById('search-in-bounds')?.addEventListener('change', updateFilterAndList)
+
+  // 選択解除ボタン
+  document.getElementById('reset-click-btn')?.addEventListener('click', () => {
+    clickedPoint = null
+    if (clickMarker) {
+      clickMarker.remove()
+      clickMarker = null
+    }
+    const clickInfoEl = document.getElementById('click-info')
+    if (clickInfoEl) clickInfoEl.style.display = 'none'
+
+    clearConnectingLine()
+    updateFilterAndList()
+  })
+}
+
+// フィルター処理・ソート・描画
+function updateFilterAndList() {
+  const nameQuery = (document.getElementById('search-name') as HTMLInputElement)?.value.trim().toLowerCase() || ''
+  const wardQuery = (document.getElementById('search-ward') as HTMLSelectElement)?.value || ''
+  const inBoundsOnly = (document.getElementById('search-in-bounds') as HTMLInputElement)?.checked || false
+
+  const bounds = map.getBounds()
+
+  // 1. 絞り込み（名前・区・画面内）
+  let filtered = allParks.filter((feature) => {
+    const name = (feature.properties.name || '').toLowerCase()
+    const ward = feature.properties.ward || ''
+    const [lng, lat] = feature.geometry.coordinates
+
+    const matchName = name.includes(nameQuery)
+    const matchWard = !wardQuery || ward === wardQuery
+    const matchBounds = !inBoundsOnly || bounds.contains([lng, lat])
+
+    return matchName && matchWard && matchBounds
+  })
+
+  let nearestId: number | null = null
+
+  // 2. 距離計算 ＆ ソート
+  if (clickedPoint && filtered.length > 0) {
+    filtered = filtered.map((feature) => {
+      const coords = feature.geometry.coordinates as [number, number]
+      const dist = calculateDistanceMeters(clickedPoint!, coords)
+      return { ...feature, _distance: dist }
+    })
+
+    filtered.sort((a, b) => a._distance - b._distance)
+    nearestId = filtered[0].properties.id
+
+    drawConnectingLine(clickedPoint, filtered[0].geometry.coordinates)
+  } else {
+    clearConnectingLine()
+  }
+
+  // 3. 地図上のソースを更新
+  const source = map.getSource('public-parks-data') as any
+  if (source) {
+    source.setData({ type: 'FeatureCollection', features: filtered })
+  }
+
+  // 4. 最寄り状態更新
+  allParks.forEach((p) => {
+    map.setFeatureState(
+      { source: 'public-parks-data', id: p.properties.id },
+      { nearest: p.properties.id === nearestId }
+    )
+  })
+
+  // 5. リスト描画
+  renderList(filtered, nearestId)
+}
+
+// リスト描画
+function renderList(parks: any[], nearestId: number | null) {
+  const listEl = document.getElementById('park-list')
+  const errorEl = document.getElementById('error-message')
+  if (!listEl || !errorEl) return
+
+  listEl.innerHTML = ''
+
+  if (parks.length === 0) {
+    errorEl.style.display = 'block'
+    errorEl.textContent = '該当する公園が見つかりません。検索条件を変更してください。'
+    return
+  } else {
+    errorEl.style.display = 'none'
+  }
+
+  parks.forEach((feature) => {
+    const props = feature.properties
+    const coords = feature.geometry.coordinates
+    const isNearest = props.id === nearestId
+
+    const li = document.createElement('li')
+    li.className = `park-item ${isNearest ? 'nearest' : ''}`
+    li.dataset.id = String(props.id)
+
+    const headerDiv = document.createElement('div')
+    headerDiv.className = 'park-item-header'
+
+    const nameSpan = document.createElement('span')
+    nameSpan.className = 'park-name'
+    nameSpan.textContent = (isNearest ? '⭐ ' : '') + props.name
+
+    headerDiv.appendChild(nameSpan)
+
+    if (feature._distance !== undefined) {
+      const distSpan = document.createElement('span')
+      distSpan.className = 'park-distance'
+      distSpan.textContent = formatDistance(feature._distance)
+      headerDiv.appendChild(distSpan)
+    }
+
+    const metaDiv = document.createElement('div')
+    metaDiv.className = 'park-meta'
+    metaDiv.textContent = `エリア: ${props.ward || 'その他'}`
+
+    li.appendChild(headerDiv)
+    li.appendChild(metaDiv)
+
+    li.addEventListener('click', () => {
+      map.flyTo({ center: coords, zoom: 15, speed: 1.2 })
+      selectPark(feature)
+    })
+
+    listEl.appendChild(li)
+  })
+}
+
+// ポップアップ選択
+function selectPark(feature: any) {
+  const props = feature.properties
+  const coords = feature.geometry.coordinates
+
+  if (currentPopup) currentPopup.remove()
+
+  const popupContent = document.createElement('div')
+
+  const title = document.createElement('h4')
+  title.textContent = props.name
+
+  const wardInfo = document.createElement('p')
+  wardInfo.textContent = `エリア: ${props.ward || 'その他'}`
+
+  const source = document.createElement('p')
+  source.style.fontSize = '11px'
+  source.style.color = '#888'
+  source.textContent = '出典: 岡山市オープンデータ'
+
+  popupContent.appendChild(title)
+  popupContent.appendChild(wardInfo)
+  popupContent.appendChild(source)
+
+  currentPopup = new Popup()
+    .setLngLat(coords)
+    .setDOMContent(popupContent)
+    .addTo(map)
+
+  document.querySelectorAll('.park-item').forEach((el) => el.classList.remove('active'))
+  const target = document.querySelector(`.park-item[data-id="${props.id}"]`)
+  if (target) {
+    target.classList.add('active')
+    target.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }
+}
+
+//クリックした地点（from）から一番近い公園（to）へ赤い点線を引く
+function drawConnectingLine(from: [number, number], to: [number, number]) {
+  const source = map.getSource('connecting-line-data') as any
+  if (source) {
+    source.setData({
+      type: 'FeatureCollection',
+      features: [{ type: 'Feature', geometry: { type: 'LineString', coordinates: [from, to] }, properties: {} }],
+    })
+  }
+}
+
+//地図上に引いた赤い点線を消して、クリアにする
+function clearConnectingLine() {
+  const source = map.getSource('connecting-line-data') as any
+  if (source) {
+    //FeatureCollectionとfeaturesの配列[]を0(クリア)にしてる
+    source.setData({ type: 'FeatureCollection', features: [] })
+  }
+}
+
+// 区のドロップダウン選択肢つくる
+function initWards(parks: any[]) {
+  const select = document.getElementById('search-ward') as HTMLSelectElement
+  if (!select) return
+
+  // データに含まれる区(北区・中区・東区・南区)のリストを重複なしで作成
+  const wards = Array.from(new Set(parks.map((p) => p.properties.ward).filter(Boolean))).sort()
+
+  wards.forEach((ward) => {
+    const opt = document.createElement('option')
+    opt.value = ward
+    opt.textContent = ward
+    select.appendChild(opt)
+  })
+}
+
+//エラー表示の処理をshowErrorとしてまとめておいて
+// トラブルが起きたら『showError('エラー理由')』と呼び出す
+function showError(message: string) {
+  const errorEl = document.getElementById('error-message')
+  if (errorEl) {
+    errorEl.style.display = 'block'
+    errorEl.textContent = message
+  }
+}

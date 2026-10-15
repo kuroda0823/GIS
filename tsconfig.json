@@ -1,17 +1,26 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
+    "target": "ES2020",
     "useDefineForClassFields": true,
     "module": "ESNext",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+
+    /* Bundler mode */
     "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+
+    /* Linting */
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
-    "skipLibCheck": true,
-    "noEmit": true,
-    "isolatedModules": true
+    "noImplicitReturns": true,
+
+    /* Node.js の型定義（node:fs や node:path を許可） */
+    "types": ["node"]
   },
-  "include": ["main.ts", "vite-env.d.ts"]
+  "include": ["main.ts", "convert.ts", "vite.config.ts", "vite-env.d.ts"]
 }
