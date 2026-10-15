@@ -1,8 +1,14 @@
+/**
+CSVからデータを読み込んで
+空欄・文字以外の座標・範囲外・重複データを除外して
+GeoJSONに変換
+ */
+
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-// __dirname の代わり（ES Modules用）
+// 今動かしているプログラムのフォルダの場所を知る
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
@@ -10,7 +16,7 @@ const __dirname = path.dirname(__filename)
 const csvFilePath = path.resolve(__dirname, 'data/opendata_1519.csv')
 const outputGeoJSONPath = path.resolve(__dirname, 'public/public_parks.geojson')
 
-// 住所から「区名」を自動判定する関数
+// 住所から「区名」を自動判定する
 function extractWard(address: string): string {
   if (address.includes('北区')) return '北区'
   if (address.includes('中区')) return '中区'
@@ -19,7 +25,8 @@ function extractWard(address: string): string {
   return 'その他'
 }
 
-// 簡易CSVパーサー（カンマ区切り・ダブルクォーテーション対応）
+//簡易CSVパーサー（カンマ区切り・ダブルクォーテーション対応）
+//公園の名前の中に上記()が入っていてもデータが崩れない
 function parseCSVLine(line: string): string[] {
   const result: string[] = []
   let current = ''
@@ -40,9 +47,7 @@ function parseCSVLine(line: string): string[] {
   return result.map((item) => item.replace(/^"|"$/g, ''))
 }
 
-
-
-
+//csvを読み込んで、GeoJSONに変換
 function convertCsvToGeoJson() {
   if (!fs.existsSync(csvFilePath)) {
     console.error(`エラー: ${csvFilePath} が見つかりません。data/ フォルダ内に opendata_1519.csv を配置してください。`)
@@ -71,6 +76,7 @@ function convertCsvToGeoJson() {
 
   const features: any[] = []
   let currentId = 1
+  const seenNames = new Set<string>()
 
   for (let i = 1; i < lines.length; i++) {
     const row = parseCSVLine(lines[i])
@@ -103,6 +109,13 @@ function convertCsvToGeoJson() {
       continue
     }
 
+    // 【除外判定 4】重複チェック
+    if (seenNames.has(name)) {
+      console.warn(`[除外] 行 ${i + 1} (${name}): 重複データのためスキップしました。`)
+      continue
+    }
+    seenNames.add(name)
+
     // 住所から行政区（北区・中区・東区・南区）を抽出
     const ward = extractWard(address)
 
@@ -111,14 +124,14 @@ function convertCsvToGeoJson() {
       type: 'Feature',
       geometry: {
         type: 'Point',
-        coordinates: [lng, lat],
+        coordinates: [lng, lat], //[longitude(経度), latitude(緯度)]
       },
       properties: {
         id: currentId++,
         name: name,
         category: category,
         address: address,
-        ward: ward, // ★ 行政区の追加
+        ward: ward, // 行政区
       },
     })
   }
@@ -128,7 +141,7 @@ function convertCsvToGeoJson() {
     features: features,
   }
 
-  // public フォルダが存在しない場合は作成
+  // フォルダが存在しない場合は作成
   const publicDir = path.dirname(outputGeoJSONPath)
   if (!fs.existsSync(publicDir)) {
     fs.mkdirSync(publicDir, { recursive: true })

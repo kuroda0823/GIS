@@ -111,6 +111,7 @@ html, body, #app {
   border-radius: 4px;
   margin-bottom: 12px;
   text-align: center;
+  white-space: pre-line;
 }
 
 /* 一覧リスト */

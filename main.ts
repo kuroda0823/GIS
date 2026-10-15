@@ -1,3 +1,10 @@
+/**
+ユーザー操作（入力・クリック)
+➔ データの絞り込み
+➔ 距離計算
+➔ 画面・レイヤー描画
+ */
+
 import { Map, NavigationControl, Popup, Marker } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import './style.css'
@@ -92,26 +99,17 @@ map.on('load', async () => {
     })
 
     // 公園ピンのレイヤー描画
-    map.addLayer({
-      id: 'public-parks-layer',
-      type: 'circle',
-      source: 'public-parks-data',
-      paint: {
-        'circle-radius': [
-          'case',
-          ['boolean', ['feature-state', 'nearest'], false], 11,
-          ['boolean', ['feature-state', 'selected'], false], 10,
-          7,
-        ],
-        'circle-color': [
-          'case',
-          ['boolean', ['feature-state', 'nearest'], false], '#e74c3c',
-          '#42b883',
-        ],
-        'circle-stroke-width': 2,
-        'circle-stroke-color': '#ffffff',
-      },
-    })
+map.addLayer({
+  id: 'public-parks-layer',
+  type: 'circle',
+  source: 'public-parks-data',
+  paint: {
+    'circle-radius': 7,          // すべての公園の丸のサイズを「7」で固定
+    'circle-color': '#42b883',    // すべての公園の色を「緑色」で固定
+    'circle-stroke-width': 2,
+    'circle-stroke-color': '#ffffff',
+  },
+})
 
     setupEvents()
     updateFilterAndList()
@@ -243,7 +241,7 @@ function renderList(parks: any[], nearestId: number | null) {
 
   if (parks.length === 0) {
     errorEl.style.display = 'block'
-    errorEl.textContent = '該当する公園が見つかりません。検索条件を変更してください。'
+    errorEl.textContent = '該当する公園が見つかりません。\n 検索条件を変更してください。'
     return
   } else {
     errorEl.style.display = 'none'
@@ -283,7 +281,6 @@ function renderList(parks: any[], nearestId: number | null) {
 
     li.addEventListener('click', () => {
       map.flyTo({ center: coords, zoom: 15, speed: 1.2 })
-      selectPark(feature)
     })
 
     listEl.appendChild(li)
