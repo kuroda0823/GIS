@@ -71,6 +71,7 @@ Feature：１つの箱　この中にデータがいろいろ入ってる
 }
 ```
 
+
 ## 3. 地図の表示
 
 ・HTML、CSS、TypeScriptを使って地図をブラウザ上に表示した  
@@ -78,4 +79,14 @@ Feature：１つの箱　この中にデータがいろいろ入ってる
 
 <img width="1910" height="1005" alt="スクリーンショット 2026-10-09 164006" src="https://github.com/user-attachments/assets/fac14e7e-24ba-4cfb-8cf6-d26e1a1e0d3b" />
 
+
+## 4. 検索欄などサイドバーの表示
+
+・岡山市の公園一覧表示
+・公園名での部分検索
+・区ごとに選択、一覧表示
+・公園からクリック地点の直線距離表示
+・地図上に公園の表示
+
+<img width="1917" height="777" alt="image" src="https://github.com/user-attachments/assets/2c112398-af49-4c47-96b6-8e2027a54639" />
 
