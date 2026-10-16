@@ -1,6 +1,6 @@
-# GIS 空間検索・描画アプリケーション (Web GIS App)
+# GIS 公園探索アプリケーション (Web GIS App)
 
-Point in Polygon（点判定）、BBOX（境界ボックス）比較、および距離計算・描画を行うWeb GISアプリケーションです。
+岡山市内の公園を探索できるアプリケーションです。
 
 ---
 
@@ -12,7 +12,7 @@ Point in Polygon（点判定）、BBOX（境界ボックス）比較、および
    - Turf.jsを用いた厳密な空間判定（穴のあるPolygon / MultiPolygonの解釈）
    - BBOX（緯度経度の最小・最大値による簡易判定）と厳密判定の精度比較および誤判定ケースの証明
 2. **距離計算・描画**
-   - クリック地点から最寄りスポットへの距離算出（Turf.js）
+   - クリック地点から最寄りスポットへの距離算出
    - 直線（LineString）のリアルタイム描画
 
 ---
@@ -34,6 +34,6 @@ Point in Polygon（点判定）、BBOX（境界ボックス）比較、および
 
 ### 1. リポジトリのクローン
 ```bash
-git clone <あなたのGitHubリポジトリのURL>
-cd <リポジトリのフォルダ名>
+git clone https://github.com/kuroda0823/GIS.git
+cd GIS
 
