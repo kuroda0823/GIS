@@ -1,0 +1,23 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "学習用エリア（さらに500m右上）"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [133.9155, 34.6545],
+            [133.9605, 34.6545],
+            [133.9605, 34.6995],
+            [133.9155, 34.6995],
+            [133.9155, 34.6545]
+          ]
+        ]
+      }
+    }
+  ]
+}

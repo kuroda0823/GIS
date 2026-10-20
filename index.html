@@ -3,53 +3,112 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>岡山市公園マップ</title>
+    <title>公園空白地帯シミュレーター</title>
   </head>
   <body>
     <div id="app">
-      <!-- 画面の約1/6のサイドバー -->
-      <aside id="sidebar">
-        <header class="sidebar-header">
-          <h2>岡山市 公園検索</h2>
-          <!-- エラーと前提の表示 -->
+      <aside id="sidebar" style="display: flex; flex-direction: column; height: 100vh;">
+        <header class="sidebar-header" style="flex-shrink: 0;">
+          <h2 style="font-size: 18px;">公園空白地帯シミュレーター</h2>
           <div id="notice-box" class="notice-box">
             <p>※ 表示距離は代表点(緯度経度)からの直線距離です。</p>
             <p class="attribution">出典：岡山市オープンデータ</p>
           </div>
         </header>
 
-        <!--　エリア選択 -->
-        <section class="search-section">
-          <input type="text" id="search-name" placeholder="公園名で検索..." />
+        <section class="simulation-section" style="margin-top: 15px; flex-shrink: 0;">
+          <div style="margin-bottom: 15px;">
+            <label for="sim-radius" style="font-size: 13px; font-weight: bold; display: block; margin-bottom: 5px;">
+              📏 ハッピーの基準（距離圏）
+            </label>
+            <select id="sim-radius" style="width: 100%; padding: 6px; border-radius: 4px; border: 1px solid #ccc;">
+              <option value="300">300m （徒歩・お年寄り向け）</option>
+              <option value="500" selected>500m （標準）</option>
+              <option value="1000">1,000m （自転車圏内）</option>
+            </select>
+          </div>
 
-          <select id="search-ward">
-            <option value="">すべての区</option>
-          </select>
-
-        <!-- 空間抽出 -->
-          <label class="checkbox-label">
-            <input type="checkbox" id="search-in-bounds" />
-            画面内の公園のみ表示する
-          </label>
+          <button id="toggle-sim-btn" style="width: 100%; padding: 8px; background: #34495e; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
+            シミュレーションをONにする
+          </button>
+          
+          <div id="sim-results" style="display: none; margin-top: 15px; font-size: 14px; background: #f8f9fa; padding: 15px; border-radius: 4px; border: 1px solid #ddd;">
+            <p style="margin: 0 0 8px 0;">🔴 圏外: <span id="sim-uncovered" style="font-weight: bold;">0</span> 点</p>
+            <p style="margin: 0 0 8px 0;">
+              🟢 圏内: <span id="sim-covered" style="font-weight: bold;">0</span> 点
+              <!-- ▼ 追加：増えた点数を表示する枠 -->
+              <span id="sim-covered-diff" style="color: #e74c3c; font-weight: bold; font-size: 12px; margin-left: 8px;"></span>
+            </p>
+            <p style="margin: 0; font-size: 16px; font-weight: bold; border-top: 1px solid #ccc; padding-top: 8px;">
+              カバー率: <span id="sim-percentage" style="color: #27ae60;">0</span> %
+              <!-- ▼ 追加：増えたパーセントを表示する枠 -->
+              <span id="sim-percent-diff" style="color: #e74c3c; font-size: 14px; margin-left: 8px;"></span>
+            </p>
+            <p style="margin: 10px 0 0 0; font-size: 11px; color: #666;">※地図をクリックして仮想公園を配置・比較できます</p>
+          </div>
         </section>
 
-        <!-- クリック情報 / 距離ソートメッセージ -->
-        <div id="click-info" class="click-info" style="display: none;">
-          <p>📍クリック地点からの距離順</p>
-          <button id="reset-click-btn">選択解除</button>
+        <div id="click-info" class="click-info" style="display: none; margin-top: 15px; background: #e8f4f8; padding: 10px; border-radius: 4px; flex-shrink: 0;">
+          <p style="font-size: 13px; margin: 0 0 8px 0; color: #2980b9; font-weight: bold;">📍 仮想公園を配置中</p>
+          <button id="reset-click-btn" style="width: 100%; padding: 6px; border: 1px solid #2980b9; background: white; color: #2980b9; border-radius: 4px; cursor: pointer;">
+            ピンを削除してやり直す
+          </button>
         </div>
 
-        <!-- 0件時・エラー表示エリア -->
-        <div id="error-message" class="error-message" style="display: none;"></div>
-
-        <!-- 公園一覧 -->
-        <ul id="park-list" class="park-list"></ul>
+        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd; flex-grow: 1; display: flex; flex-direction: column; min-height: 0;">
+          <h3 style="margin: 0 0 10px 0; font-size: 14px;">🏞 公園一覧</h3>
+          <ul id="park-list" class="park-list" style="flex-grow: 1; overflow-y: auto; margin: 0; padding: 0; list-style: none;"></ul>
+        </div>
       </aside>
 
       <!-- 地図エリア -->
-      <main id="map"></main>
+      <main id="map" style="position: relative;">
+        
+        <!-- ▼ 追加：地図の右下に重ねて表示する「凡例（説明書き）」 ▼ -->
+        <div id="map-legend" style="
+          position: absolute;
+          bottom: 20px;
+          right: 20px;
+          background: rgba(255, 255, 255, 0.95);
+          padding: 12px 16px;
+          border-radius: 6px;
+          box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
+          z-index: 1000;
+          font-size: 12px;
+          border: 1px solid #ddd;
+          line-height: 1.6;
+          max-width: 280px;
+          pointer-events: none; /* マウス操作を邪魔しない設定 */
+        ">
+          <h4 style="margin: 0 0 8px 0; font-size: 13px; font-weight: bold; border-bottom: 1px solid #eee; padding-bottom: 4px; color: #2c3e50;">📊 凡例（Legend）</h4>
+          
+          <div style="display: flex; align-items: center; margin-bottom: 5px;">
+            <span style="display: inline-block; width: 14px; height: 14px; background: rgba(52, 152, 219, 0.25); border: 1px solid #2980b9; border-radius: 50%; margin-right: 8px;"></span>
+            <span>公園からの距離圏（青いバッファ）</span>
+          </div>
+          
+          <div style="display: flex; align-items: center; margin-bottom: 5px;">
+            <span style="display: inline-block; width: 10px; height: 10px; background: #42b883; border-radius: 50%; margin-right: 12px; margin-left: 2px;"></span>
+            <span> 範囲内（指定距離内に公園あり）</span>
+          </div>
+          
+          <div style="display: flex; align-items: center; margin-bottom: 5px;">
+            <span style="display: inline-block; width: 10px; height: 10px; background: #e74c3c; border-radius: 50%; margin-right: 12px; margin-left: 2px;"></span>
+            <span> 範囲外（空白地帯）</span>
+          </div>
+          
+          <div style="display: flex; align-items: center; margin-bottom: 5px;">
+            <span style="display: inline-block; width: 10px; height: 10px; background: #42b883; border: 2px solid #ffffff; box-shadow: 0 0 0 1px #888; border-radius: 50%; margin-right: 12px; margin-left: 2px;"></span>
+            <span> 既存の公園（オープンデータ）</span>
+          </div>
+          
+          <div style="display: flex; align-items: center;">
+            <span style="font-size: 14px; margin-right: 8px; margin-left: 1px;">📍</span>
+            <span>赤いピン：仮想公園（候補地）</span>
+          </div>
+        </div>
+      </main>
     </div>
-    <div id="map"></div>
     <script type="module" src="main.ts"></script>
   </body>
 </html>

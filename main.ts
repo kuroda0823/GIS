@@ -1,15 +1,8 @@
-/**
-ユーザー操作（入力・クリック)
-➔ データの絞り込み
-➔ 距離計算
-➔ 画面・レイヤー描画
- */
-
-import { Map, NavigationControl, Popup, Marker } from 'maplibre-gl'
+import { Map, NavigationControl, Marker, Popup } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import './style.css'
+import * as turf from '@turf/turf'
 
-// 1. 地図オブジェクトの作成
 const map = new Map({
   container: 'map',
   style: {
@@ -19,13 +12,15 @@ const map = new Map({
         type: 'raster',
         tiles: ['https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png'],
         tileSize: 256,
+        maxzoom: 18,
         attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>',
       },
     },
     layers: [{ id: 'gsi-base', type: 'raster', source: 'gsi' }],
   },
-  center: [133.918, 34.662],
-  zoom: 12,
+  center: [133.935, 34.675], 
+  zoom: 13,
+  maxZoom: 18,
 })
 
 map.addControl(new NavigationControl(), 'top-right')
@@ -33,13 +28,12 @@ map.addControl(new NavigationControl(), 'top-right')
 let allParks: any[] = []
 let clickedPoint: [number, number] | null = null
 let clickMarker: Marker | null = null
-let currentPopup: Popup | null = null
+let isSimulationMode = false
 
-// 2点間の距離をメートル単位で計算（ヒュベニの公式：地球の丸みも考慮して計算してる）
 function calculateDistanceMeters(coord1: [number, number], coord2: [number, number]): number {
   const [lng1, lat1] = coord1
   const [lng2, lat2] = coord2
-  const R = 6371000 // 地球の半径 (m)
+  const R = 6371000
   const dLat = ((lat2 - lat1) * Math.PI) / 180
   const dLng = ((lng2 - lng1) * Math.PI) / 180
   const a =
@@ -49,11 +43,8 @@ function calculateDistanceMeters(coord1: [number, number], coord2: [number, numb
   return Math.round(R * c)
 }
 
-// 距離のフォーマット表示 (m / km)
 function formatDistance(meters: number): string {
-  if (meters >= 1000) {
-    return `${(meters / 1000).toFixed(1)} km`
-  }
+  if (meters >= 1000) return `${(meters / 1000).toFixed(1)} km`
   return `${meters} m`
 }
 
@@ -61,69 +52,83 @@ map.on('load', async () => {
   try {
     const response = await fetch('/public_parks.geojson')
     if (!response.ok) throw new Error('GeoJSONの読み込みに失敗しました')
-
     const geojson = await response.json()
     allParks = geojson.features || []
 
-    if (allParks.length === 0) {
-      showError('公園データが見つかりませんでした。')
-      return
-    }
+    updateParkList()
 
-    // 区（行政区）ドロップダウンの選択肢を動的生成
-    initWards(allParks)
-
-    // 地図データソースの登録
-    map.addSource('public-parks-data', {
-      type: 'geojson',
-      data: geojson,
-      generateId: true,
-    })
-
-    // 最寄り公園と結ぶ線用ソースの登録
-    map.addSource('connecting-line-data', {
+    map.addSource('simulation-buffers-data', {
       type: 'geojson',
       data: { type: 'FeatureCollection', features: [] },
     })
-
-    // 接続線のレイヤー描画（点線）
     map.addLayer({
-      id: 'connecting-line-layer',
-      type: 'line',
-      source: 'connecting-line-data',
+      id: 'simulation-buffers-layer',
+      type: 'fill',
+      source: 'simulation-buffers-data',
       paint: {
-        'line-color': '#e74c3c',
-        'line-width': 3,
-        'line-dasharray': [2, 2],
+        'fill-color': '#3498db',
+        'fill-opacity': 0.25,
+        'fill-outline-color': '#2980b9',
       },
     })
 
-    // 公園ピンのレイヤー描画
-map.addLayer({
-  id: 'public-parks-layer',
-  type: 'circle',
-  source: 'public-parks-data',
-  paint: {
-    'circle-radius': 7,          // すべての公園の丸のサイズを「7」で固定
-    'circle-color': '#42b883',    // すべての公園の色を「緑色」で固定
-    'circle-stroke-width': 2,
-    'circle-stroke-color': '#ffffff',
-  },
-})
+    map.addSource('simulation-points-data', {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: [] },
+    })
+    map.addLayer({
+      id: 'simulation-points-layer',
+      type: 'circle',
+      source: 'simulation-points-data',
+      paint: {
+        'circle-radius': 4,
+        'circle-color': ['get', 'color'],
+        'circle-opacity': 0.8,
+      },
+    })
+
+    map.addSource('public-parks-data', {
+      type: 'geojson',
+      data: geojson,
+    })
+    map.addLayer({
+      id: 'public-parks-layer',
+      type: 'circle',
+      source: 'public-parks-data',
+      paint: {
+        'circle-radius': 6,
+        'circle-color': '#42b883',
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#ffffff',
+      },
+    })
 
     setupEvents()
-    updateFilterAndList()
   } catch (err: any) {
-    showError(`読み込みエラー: ${err.message}`)
+    console.error(`読み込みエラー: ${err.message}`)
   }
 })
 
-//クリック時のイベント
 function setupEvents() {
-  // 地図クリック時
+  map.on('click', 'public-parks-layer', (e) => {
+    if (!e.features || e.features.length === 0) return
+    const feature = e.features[0]
+    const coords = (feature.geometry as any).coordinates as [number, number]
+    const props = feature.properties
+
+    new Popup({ closeButton: false, closeOnClick: true, offset: 10 })
+      .setLngLat(coords)
+      .setHTML(`<div style="padding: 2px; font-weight: bold; font-size: 13px; color: #2c3e50;">${props.name}</div>`)
+      .addTo(map)
+  })
+
+  map.on('mouseenter', 'public-parks-layer', () => { map.getCanvas().style.cursor = 'pointer' })
+  map.on('mouseleave', 'public-parks-layer', () => { map.getCanvas().style.cursor = '' })
+
   map.on('click', (e) => {
     const features = map.queryRenderedFeatures(e.point, { layers: ['public-parks-layer'] })
     if (features.length > 0) return
+    if (!isSimulationMode) return
 
     const lngLat: [number, number] = [e.lngLat.lng, e.lngLat.lat]
     clickedPoint = lngLat
@@ -134,238 +139,212 @@ function setupEvents() {
       clickMarker.setLngLat(lngLat)
     }
 
-    const clickInfoEl = document.getElementById('click-info')
-    if (clickInfoEl) clickInfoEl.style.display = 'flex'
-
-    updateFilterAndList()
+    document.getElementById('click-info')!.style.display = 'block'
+    runSimulation() 
+    updateParkList()
   })
 
-  // ピンクリック時
-  map.on('click', 'public-parks-layer', (e) => {
-    if (!e.features || e.features.length === 0) return
-    selectPark(e.features[0])
-  })
-
-  // 画面移動時
-  map.on('moveend', () => {
-    const inBoundsCheckbox = document.getElementById('search-in-bounds') as HTMLInputElement
-    if (inBoundsCheckbox && inBoundsCheckbox.checked) {
-      updateFilterAndList()
-    }
-  })
-
-  // 検索イベント
-  document.getElementById('search-name')?.addEventListener('input', updateFilterAndList)
-  document.getElementById('search-ward')?.addEventListener('change', updateFilterAndList)
-  document.getElementById('search-in-bounds')?.addEventListener('change', updateFilterAndList)
-
-  // 選択解除ボタン
   document.getElementById('reset-click-btn')?.addEventListener('click', () => {
     clickedPoint = null
     if (clickMarker) {
       clickMarker.remove()
       clickMarker = null
     }
-    const clickInfoEl = document.getElementById('click-info')
-    if (clickInfoEl) clickInfoEl.style.display = 'none'
+    document.getElementById('click-info')!.style.display = 'none'
+    runSimulation()
+    updateParkList()
+  })
 
-    clearConnectingLine()
-    updateFilterAndList()
+  document.getElementById('toggle-sim-btn')?.addEventListener('click', (e) => {
+    isSimulationMode = !isSimulationMode
+    const btn = e.target as HTMLButtonElement
+    const resultsDiv = document.getElementById('sim-results')
+
+    if (isSimulationMode) {
+      btn.textContent = 'シミュレーションをOFFにする'
+      btn.style.background = '#e74c3c'
+      if (resultsDiv) resultsDiv.style.display = 'block'
+      runSimulation()
+    } else {
+      btn.textContent = 'シミュレーションをONにする'
+      btn.style.background = '#34495e'
+      if (resultsDiv) resultsDiv.style.display = 'none'
+      
+      ;(map.getSource('simulation-points-data') as any)?.setData({ type: 'FeatureCollection', features: [] })
+      ;(map.getSource('simulation-buffers-data') as any)?.setData({ type: 'FeatureCollection', features: [] })
+    }
+  })
+
+  document.getElementById('sim-radius')?.addEventListener('change', () => {
+    if (isSimulationMode) runSimulation()
   })
 }
 
-// フィルター処理・ソート・描画
-function updateFilterAndList() {
-  const nameQuery = (document.getElementById('search-name') as HTMLInputElement)?.value.trim().toLowerCase() || ''
-  const wardQuery = (document.getElementById('search-ward') as HTMLSelectElement)?.value || ''
-  const inBoundsOnly = (document.getElementById('search-in-bounds') as HTMLInputElement)?.checked || false
-
-  const bounds = map.getBounds()
-
-  // 1. 絞り込み（名前・区・画面内）
-  let filtered = allParks.filter((feature) => {
-    const name = (feature.properties.name || '').toLowerCase()
-    const ward = feature.properties.ward || ''
-    const [lng, lat] = feature.geometry.coordinates
-
-    const matchName = name.includes(nameQuery)
-    const matchWard = !wardQuery || ward === wardQuery
-    const matchBounds = !inBoundsOnly || bounds.contains([lng, lat])
-
-    return matchName && matchWard && matchBounds
-  })
-
-  let nearestId: number | null = null
-
-  // 2. 距離計算 ＆ ソート
-  if (clickedPoint && filtered.length > 0) {
-    filtered = filtered.map((feature) => {
-      const coords = feature.geometry.coordinates as [number, number]
+function updateParkList() {
+  let displayParks = [...allParks]
+  if (clickedPoint) {
+    displayParks = displayParks.map((park) => {
+      const coords = (park.geometry as any).coordinates as [number, number]
       const dist = calculateDistanceMeters(clickedPoint!, coords)
-      return { ...feature, _distance: dist }
+      return { ...park, _distance: dist }
+    })
+    displayParks.sort((a, b) => a._distance - b._distance)
+  }
+  renderList(displayParks)
+}
+
+// ▼ 修正：ビフォーアフターの差分を計算するように変更
+async function runSimulation() {
+  if (!isSimulationMode) return
+
+  try {
+    const radiusStr = (document.getElementById('sim-radius') as HTMLSelectElement).value
+    const currentRadius = parseInt(radiusStr, 10)
+
+    const response = await fetch('/okayama_dummy.geojson')
+    const boundaryData = await response.json()
+    const boundaryPolygon = boundaryData.features[0]
+
+    const bbox = turf.bbox(boundaryPolygon)
+    const grid = turf.pointGrid(bbox, 0.2, { units: 'kilometers' })
+
+    const samplePoints: any[] = []
+    
+    // 計算用の変数を用意
+    let baseCoveredCount = 0 // 元々の公園だけでカバーできている数
+    let totalCoveredCount = 0 // 仮想公園も含めてカバーできた数
+    let newlyCoveredCount = 0 // 仮想公園のおかげで「新しく」カバーできた数
+
+    turf.featureEach(grid, function (currentPoint) {
+      if (turf.booleanPointInPolygon(currentPoint, boundaryPolygon)) {
+        let isBaseCovered = false
+        let isVirtualCovered = false
+        const ptCoords = currentPoint.geometry.coordinates as [number, number]
+
+        // 1. 元々の公園（ベース）との距離チェック
+        for (const park of allParks) {
+          const parkCoords = (park.geometry as any).coordinates as [number, number]
+          if (calculateDistanceMeters(ptCoords, parkCoords) <= currentRadius) {
+            isBaseCovered = true
+            break
+          }
+        }
+
+        // 2. 仮想公園との距離チェック
+        if (clickedPoint) {
+          if (calculateDistanceMeters(ptCoords, clickedPoint) <= currentRadius) {
+            isVirtualCovered = true
+          }
+        }
+
+        // 最終的な判定
+        const isCovered = isBaseCovered || isVirtualCovered
+        currentPoint.properties = { color: isCovered ? '#42b883' : '#e74c3c' }
+        samplePoints.push(currentPoint)
+
+        // 集計
+        if (isBaseCovered) baseCoveredCount++
+        if (isCovered) totalCoveredCount++
+        if (!isBaseCovered && isVirtualCovered) newlyCoveredCount++ // これが差分！
+      }
     })
 
-    filtered.sort((a, b) => a._distance - b._distance)
-    nearestId = filtered[0].properties.id
+    const bufferFeatures: any[] = []
+    for (const park of allParks) {
+      const buffered = turf.buffer(park, currentRadius / 1000, { units: 'kilometers' })
+      if (buffered) bufferFeatures.push(buffered)
+    }
+    if (clickedPoint) {
+      const clickPtFeature = turf.point(clickedPoint)
+      const clickBuffered = turf.buffer(clickPtFeature, currentRadius / 1000, { units: 'kilometers' })
+      if (clickBuffered) bufferFeatures.push(clickBuffered)
+    }
 
-    drawConnectingLine(clickedPoint, filtered[0].geometry.coordinates)
-  } else {
-    clearConnectingLine()
+    ;(map.getSource('simulation-points-data') as any)?.setData(turf.featureCollection(samplePoints))
+    ;(map.getSource('simulation-buffers-data') as any)?.setData(turf.featureCollection(bufferFeatures))
+
+    // 画面の数字を更新
+    const total = samplePoints.length
+    const uncoveredCount = total - totalCoveredCount
+    
+    const basePercentage = total > 0 ? (baseCoveredCount / total) * 100 : 0
+    const totalPercentage = total > 0 ? (totalCoveredCount / total) * 100 : 0
+    const diffPercentage = totalPercentage - basePercentage
+
+    document.getElementById('sim-uncovered')!.textContent = String(uncoveredCount)
+    document.getElementById('sim-covered')!.textContent = String(totalCoveredCount)
+    document.getElementById('sim-percentage')!.textContent = totalPercentage.toFixed(1)
+
+    // ▼ 差分の表示（ピンが置かれている時だけ +〇〇 と表示する）
+    const diffPointsEl = document.getElementById('sim-covered-diff')!
+    const diffPercentEl = document.getElementById('sim-percent-diff')!
+
+    if (clickedPoint && newlyCoveredCount > 0) {
+      diffPointsEl.textContent = `(+${newlyCoveredCount}点)`
+      diffPercentEl.textContent = `(+${diffPercentage.toFixed(1)}%)`
+    } else {
+      diffPointsEl.textContent = ''
+      diffPercentEl.textContent = ''
+    }
+
+  } catch (error) {
+    console.error("シミュレーションエラー:", error)
   }
-
-  // 3. 地図上のソースを更新
-  const source = map.getSource('public-parks-data') as any
-  if (source) {
-    source.setData({ type: 'FeatureCollection', features: filtered })
-  }
-
-  // 4. 最寄り状態更新
-  allParks.forEach((p) => {
-    map.setFeatureState(
-      { source: 'public-parks-data', id: p.properties.id },
-      { nearest: p.properties.id === nearestId }
-    )
-  })
-
-  // 5. リスト描画
-  renderList(filtered, nearestId)
 }
 
-// リスト描画
-function renderList(parks: any[], nearestId: number | null) {
+function renderList(parks: any[]) {
   const listEl = document.getElementById('park-list')
-  const errorEl = document.getElementById('error-message')
-  if (!listEl || !errorEl) return
-
+  if (!listEl) return
   listEl.innerHTML = ''
-
-  if (parks.length === 0) {
-    errorEl.style.display = 'block'
-    errorEl.textContent = '該当する公園が見つかりません。\n 検索条件を変更してください。'
-    return
-  } else {
-    errorEl.style.display = 'none'
-  }
 
   parks.forEach((feature) => {
     const props = feature.properties
-    const coords = feature.geometry.coordinates
-    const isNearest = props.id === nearestId
+    const coords = (feature.geometry as any).coordinates
 
     const li = document.createElement('li')
-    li.className = `park-item ${isNearest ? 'nearest' : ''}`
-    li.dataset.id = String(props.id)
+    li.className = 'park-item'
+    li.style.padding = '10px'
+    li.style.borderBottom = '1px solid #eee'
+    li.style.cursor = 'pointer'
+    li.style.transition = 'background-color 0.2s'
 
-    const headerDiv = document.createElement('div')
-    headerDiv.className = 'park-item-header'
+    li.addEventListener('mouseover', () => { li.style.backgroundColor = '#f8f9fa' })
+    li.addEventListener('mouseout', () => { li.style.backgroundColor = 'transparent' })
+
+    const topRow = document.createElement('div')
+    topRow.style.display = 'flex'
+    topRow.style.justifyContent = 'space-between'
+    topRow.style.alignItems = 'center'
 
     const nameSpan = document.createElement('span')
-    nameSpan.className = 'park-name'
-    nameSpan.textContent = (isNearest ? '⭐ ' : '') + props.name
-
-    headerDiv.appendChild(nameSpan)
+    nameSpan.style.fontWeight = 'bold'
+    nameSpan.style.fontSize = '13px'
+    nameSpan.style.color = '#2c3e50'
+    nameSpan.textContent = props.name
+    topRow.appendChild(nameSpan)
 
     if (feature._distance !== undefined) {
       const distSpan = document.createElement('span')
-      distSpan.className = 'park-distance'
+      distSpan.style.fontWeight = 'bold'
+      distSpan.style.fontSize = '12px'
+      distSpan.style.color = '#e74c3c'
       distSpan.textContent = formatDistance(feature._distance)
-      headerDiv.appendChild(distSpan)
+      topRow.appendChild(distSpan)
     }
 
     const metaDiv = document.createElement('div')
-    metaDiv.className = 'park-meta'
+    metaDiv.style.fontSize = '11px'
+    metaDiv.style.color = '#7f8c8d'
+    metaDiv.style.marginTop = '4px'
     metaDiv.textContent = `エリア: ${props.ward || 'その他'}`
 
-    li.appendChild(headerDiv)
+    li.appendChild(topRow)
     li.appendChild(metaDiv)
 
     li.addEventListener('click', () => {
-      map.flyTo({ center: coords, zoom: 15, speed: 1.2 })
+      map.flyTo({ center: coords, zoom: 16, speed: 1.2 })
     })
 
     listEl.appendChild(li)
   })
-}
-
-// ポップアップ選択
-function selectPark(feature: any) {
-  const props = feature.properties
-  const coords = feature.geometry.coordinates
-
-  if (currentPopup) currentPopup.remove()
-
-  const popupContent = document.createElement('div')
-
-  const title = document.createElement('h4')
-  title.textContent = props.name
-
-  const wardInfo = document.createElement('p')
-  wardInfo.textContent = `エリア: ${props.ward || 'その他'}`
-
-  const source = document.createElement('p')
-  source.style.fontSize = '11px'
-  source.style.color = '#888'
-  source.textContent = '出典: 岡山市オープンデータ'
-
-  popupContent.appendChild(title)
-  popupContent.appendChild(wardInfo)
-  popupContent.appendChild(source)
-
-  currentPopup = new Popup()
-    .setLngLat(coords)
-    .setDOMContent(popupContent)
-    .addTo(map)
-
-  document.querySelectorAll('.park-item').forEach((el) => el.classList.remove('active'))
-  const target = document.querySelector(`.park-item[data-id="${props.id}"]`)
-  if (target) {
-    target.classList.add('active')
-    target.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-  }
-}
-
-//クリックした地点（from）から一番近い公園（to）へ赤い点線を引く
-function drawConnectingLine(from: [number, number], to: [number, number]) {
-  const source = map.getSource('connecting-line-data') as any
-  if (source) {
-    source.setData({
-      type: 'FeatureCollection',
-      features: [{ type: 'Feature', geometry: { type: 'LineString', coordinates: [from, to] }, properties: {} }],
-    })
-  }
-}
-
-//地図上に引いた赤い点線を消して、クリアにする
-function clearConnectingLine() {
-  const source = map.getSource('connecting-line-data') as any
-  if (source) {
-    //FeatureCollectionとfeaturesの配列[]を0(クリア)にしてる
-    source.setData({ type: 'FeatureCollection', features: [] })
-  }
-}
-
-// 区のドロップダウン選択肢つくる
-function initWards(parks: any[]) {
-  const select = document.getElementById('search-ward') as HTMLSelectElement
-  if (!select) return
-
-  // データに含まれる区(北区・中区・東区・南区)のリストを重複なしで作成
-  const wards = Array.from(new Set(parks.map((p) => p.properties.ward).filter(Boolean))).sort()
-
-  wards.forEach((ward) => {
-    const opt = document.createElement('option')
-    opt.value = ward
-    opt.textContent = ward
-    select.appendChild(opt)
-  })
-}
-
-//エラー表示の処理をshowErrorとしてまとめておいて
-// トラブルが起きたら『showError('エラー理由')』と呼び出す
-function showError(message: string) {
-  const errorEl = document.getElementById('error-message')
-  if (errorEl) {
-    errorEl.style.display = 'block'
-    errorEl.textContent = message
-  }
 }
